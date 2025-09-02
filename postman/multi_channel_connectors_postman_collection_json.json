@@ -1,0 +1,128 @@
+{
+  "info": {
+    "_postman_id": "ecom-multichannel-001",
+    "name": "Ecom AI Agent - Multi-channel Connectors",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Postman collection for multi-channel connectors: webhook registration, inbound webhook handling, outbound sends, template messaging (WhatsApp), and connector test endpoints."
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:3000" },
+    { "key": "auth_token", "value": "" },
+    { "key": "tenant_id", "value": "t_local" },
+    { "key": "whatsapp_number", "value": "+15550001234" },
+    { "key": "phone_number", "value": "+15550009876" },
+    { "key": "webhook_secret", "value": "secret_key_here" },
+    { "key": "message_id", "value": "" },
+    { "key": "conversation_id", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "00 - Health",
+      "item": [
+        {
+          "name": "GET /health",
+          "request": { "method": "GET", "url": "{{base_url}}/health" },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('health 200', function(){ pm.response.to.have.status(200); });"], "type": "text/javascript" } }]
+        }
+      ]
+    },
+    {
+      "name": "01 - Connector Management",
+      "item": [
+        {
+          "name": "POST /v1/admin/tenants/{{tenant_id}}/connectors/{channel}/register - register connector",
+          "request": {
+            "method": "POST",
+            "header": [ { "key": "Authorization", "value": "Bearer {{auth_token}}" }, { "key": "Content-Type", "value": "application/json" } ],
+            "body": { "mode": "raw", "raw": "{ \"channel\": \"whatsapp\", \"config\": { \"phone_number\": \"{{whatsapp_number}}\", \"webhook_url\": \"https://hooks.example.com/whatsapp\" } }" },
+            "url": "{{base_url}}/v1/admin/tenants/{{tenant_id}}/connectors/whatsapp/register"
+          },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('registered 200/201', function(){ pm.expect([200,201]).to.include(pm.response.code); });"], "type": "text/javascript" } }]
+        },
+        {
+          "name": "POST /v1/admin/tenants/{{tenant_id}}/connectors/{channel}/test - test connector",
+          "request": { "method": "POST", "header": [ { "key": "Authorization", "value": "Bearer {{auth_token}}" }, { "key": "Content-Type", "value": "application/json" } ], "body": { "mode": "raw", "raw": "{ \"channel\": \"whatsapp\" }" }, "url": "{{base_url}}/v1/admin/tenants/{{tenant_id}}/connectors/whatsapp/test" },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('connector test ok', function(){ pm.response.to.have.status(200); });"], "type": "text/javascript" } }]
+        }
+      ]
+    },
+    {
+      "name": "02 - Webhook & Inbound Events",
+      "item": [
+        {
+          "name": "POST /v1/connectors/whatsapp/webhook - simulated inbound (platform -> us)",
+          "request": {
+            "method": "POST",
+            "header": [ { "key": "Content-Type", "value": "application/json" }, { "key": "X-Hub-Signature", "value": "{{webhook_signature}}" } ],
+            "body": { "mode": "raw", "raw": "{ \"from\": \"{{phone_number}}\", \"to\": \"{{whatsapp_number}}\", \"text\": \"Hello, I need help tracking my order #1001\", \"timestamp\": \"{{timestamp}}\" }" },
+            "url": "{{base_url}}/v1/connectors/whatsapp/webhook"
+          },
+          "event": [
+            { "listen": "prerequest", "script": { "exec": ["if(!pm.environment.get('timestamp')) pm.environment.set('timestamp', new Date().toISOString());"], "type": "text/javascript" } },
+            { "listen": "test", "script": { "exec": ["pm.test('webhook accepted 200', function(){ pm.response.to.have.status(200); }); var b=pm.response.json(); if(b && b.conversation_id) pm.environment.set('conversation_id', b.conversation_id);"], "type": "text/javascript" } }
+          ]
+        },
+        {
+          "name": "POST /v1/connectors/email/inbound - simulated inbound email",
+          "request": { "method": "POST", "header": [ { "key": "Content-Type", "value": "application/json" } ], "body": { "mode": "raw", "raw": "{ \"from\": \"customer@example.com\", \"to\": \"support@example.com\", \"subject\": \"Order 1001 status\", \"text\": \"Where is my order?\" }" }, "url": "{{base_url}}/v1/connectors/email/inbound" },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('email webhook 200', function(){ pm.response.to.have.status(200); });"], "type": "text/javascript" } }]
+        }
+      ]
+    },
+    {
+      "name": "03 - Outbound Messaging",
+      "item": [
+        {
+          "name": "POST /v1/connectors/whatsapp/send - send text message",
+          "request": {
+            "method": "POST",
+            "header": [ { "key": "Authorization", "value": "Bearer {{auth_token}}" }, { "key": "Content-Type", "value": "application/json" } ],
+            "body": { "mode": "raw", "raw": "{ \"to\": \"{{phone_number}}\", \"from\": \"{{whatsapp_number}}\", \"text\": \"Your order #1001 has shipped (tracking: ABC123)\" }" },
+            "url": "{{base_url}}/v1/connectors/whatsapp/send"
+          },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('send accepted', function(){ pm.response.to.have.status(200); }); var b=pm.response.json(); if(b && b.message_id) pm.environment.set('message_id', b.message_id);"], "type": "text/javascript" } }]
+        },
+        {
+          "name": "POST /v1/connectors/whatsapp/send_template - send template message (business)",
+          "request": { "method": "POST", "header": [ { "key": "Authorization", "value": "Bearer {{auth_token}}" }, { "key": "Content-Type", "value": "application/json" } ], "body": { "mode": "raw", "raw": "{ \"to\": \"{{phone_number}}\", \"template_name\": \"order_shipped\", \"params\": { \"order_id\": \"1001\", \"tracking\": \"ABC123\" } }" }, "url": "{{base_url}}/v1/connectors/whatsapp/send_template" },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('template queued 200', function(){ pm.response.to.have.status(200); });"], "type": "text/javascript" } }]
+        },
+        {
+          "name": "POST /v1/connectors/email/send - send outbound email",
+          "request": { "method": "POST", "header": [ { "key": "Authorization", "value": "Bearer {{auth_token}}" }, { "key": "Content-Type", "value": "application/json" } ], "body": { "mode": "raw", "raw": "{ \"to\": \"customer@example.com\", \"subject\": \"Your order update\", \"text\": \"Your order has shipped\" }" }, "url": "{{base_url}}/v1/connectors/email/send" },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('email send 200', function(){ pm.response.to.have.status(200); });"], "type": "text/javascript" } }]
+        }
+      ]
+    },
+    {
+      "name": "04 - Message Status & History",
+      "item": [
+        {
+          "name": "GET /v1/connectors/messages/{{message_id}} - delivery/status",
+          "request": { "method": "GET", "header": [ { "key": "Authorization", "value": "Bearer {{auth_token}}" } ], "url": "{{base_url}}/v1/connectors/messages/{{message_id}}" },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('message status 200/404', function(){ pm.expect([200,404]).to.include(pm.response.code); });"], "type": "text/javascript" } }]
+        },
+        {
+          "name": "GET /v1/connectors/conversations/{{conversation_id}}/messages - list conversation messages",
+          "request": { "method": "GET", "header": [ { "key": "Authorization", "value": "Bearer {{auth_token}}" } ], "url": "{{base_url}}/v1/connectors/conversations/{{conversation_id}}/messages" },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('messages list 200', function(){ pm.response.to.have.status(200); }); var b=pm.response.json(); pm.test('is array', function(){ pm.expect(Array.isArray(b)).to.be.true; });"], "type": "text/javascript" } }]
+        }
+      ]
+    },
+    {
+      "name": "05 - Templates & Approvals (WhatsApp)",
+      "item": [
+        {
+          "name": "POST /v1/admin/tenants/{{tenant_id}}/templates - register template",
+          "request": { "method": "POST", "header": [ { "key": "Authorization", "value": "Bearer {{auth_token}}" }, { "key": "Content-Type", "value": "application/json" } ], "body": { "mode": "raw", "raw": "{ \"name\": \"order_shipped\", \"body\": \"Your order {{order_id}} has shipped. Tracking: {{tracking}}\" }" }, "url": "{{base_url}}/v1/admin/tenants/{{tenant_id}}/templates" },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('template accepted', function(){ pm.response.to.have.status(200); });"], "type": "text/javascript" } }]
+        },
+        {
+          "name": "GET /v1/admin/tenants/{{tenant_id}}/templates - list templates",
+          "request": { "method": "GET", "header": [ { "key": "Authorization", "value": "Bearer {{auth_token}}" } ], "url": "{{base_url}}/v1/admin/tenants/{{tenant_id}}/templates" },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('templates 200', function(){ pm.response.to.have.status(200); });"], "type": "text/javascript" } }]
+        }
+      ]
+    }
+  ]
+}

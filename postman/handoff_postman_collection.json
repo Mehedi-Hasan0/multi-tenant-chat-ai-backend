@@ -1,0 +1,375 @@
+{
+  "info": {
+    "name": "Ecom AI Agent - Human Handoff & Helpdesk Integration",
+    "_postman_id": "handoff-feature-001",
+    "description": "Postman collection for Human Handoff and Helpdesk Integration (create escalations, helpdesk ticket creation, agent replies, promote corrections to KB, webhooks).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Health Check",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/health",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "health"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('health 200', function(){ pm.response.to.have.status(200); });"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Create Escalation (internal)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{auth_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"conversation_id\": \"conv_123\",\n  \"tenant_id\": \"{{tenant_id}}\",\n  \"reason\": \"low_confidence\",\n  \"summary\": \"Customer requests refund exceeding threshold. Suggested replies included.\",\n  \"suggested_replies\": [\n    \"We're sorry \\u2014 I can start a return for you. Would you like that?\"\n  ]\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/v1/internal/escalations",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "v1",
+            "internal",
+            "escalations"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('status 200 or 201', function(){ pm.expect([200,201]).to.include(pm.response.code); });",
+              "let b = pm.response.json();",
+              "pm.test('has escalation_id', function(){ pm.expect(b).to.have.property('escalation_id'); if(b.escalation_id) pm.environment.set('escalation_id', b.escalation_id); });"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Create Helpdesk Ticket (Zendesk)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{auth_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"escalation_id\": \"{{escalation_id}}\",\n  \"subject\": \"Customer escalation: refund request\",\n  \"body\": \"Conversation summary and suggested replies here.\",\n  \"priority\": \"high\",\n  \"customer_email\": \"{{test_customer_email}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/v1/internal/escalations/{{escalation_id}}/create_ticket",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "v1",
+            "internal",
+            "escalations",
+            "{{escalation_id}}",
+            "create_ticket"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('201 or 200', function(){ pm.expect([200,201]).to.include(pm.response.code); });",
+              "let b = pm.response.json();",
+              "pm.test('has external_ticket_id', function(){ pm.expect(b).to.have.property('external_ticket_id'); if(b.external_ticket_id) pm.environment.set('external_ticket_id', b.external_ticket_id); });"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Get Escalation by ID",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{auth_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/v1/internal/escalations/{{escalation_id}}",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "v1",
+            "internal",
+            "escalations",
+            "{{escalation_id}}"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('200 or 404', function(){ pm.expect([200,404]).to.include(pm.response.code); });"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Agent Reply to Ticket (post reply)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{auth_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"escalation_id\": \"{{escalation_id}}\",\n  \"agent_id\": \"agent_1\",\n  \"reply\": \"Thanks \\u2014 I see the order. I've approved the return and raised a label.\",\n  \"attach_to_conversation\": true\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/v1/internal/escalations/{{escalation_id}}/reply",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "v1",
+            "internal",
+            "escalations",
+            "{{escalation_id}}",
+            "reply"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('reply accepted 200', function(){ pm.response.to.have.status(200); });"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Promote Correction to KB (create KB entry from escalation)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{auth_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"escalation_id\": \"{{escalation_id}}\",\n  \"title\": \"Refund policy clarification for oversize items\",\n  \"content\": \"Corrected policy content or suggested reply that worked\",\n  \"tags\": [\n    \"refunds\",\n    \"policy\"\n  ]\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/v1/internal/escalations/{{escalation_id}}/promote_to_kb",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "v1",
+            "internal",
+            "escalations",
+            "{{escalation_id}}",
+            "promote_to_kb"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('promoted 200 or 201', function(){ pm.expect([200,201]).to.include(pm.response.code); });",
+              "let b = pm.response.json();",
+              "pm.test('has kb_id', function(){ pm.expect(b).to.have.property('kb_id'); if(b.kb_id) pm.environment.set('kb_id', b.kb_id); });"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Helpdesk Webhook Receiver (ticket updates)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Service-Signature",
+            "value": "{{helpdesk_webhook_sig}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"external_ticket_id\": \"{{external_ticket_id}}\",\n  \"status\": \"solved\",\n  \"agent_id\": \"agent_1\",\n  \"notes\": \"Ticket resolved by agent.\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/v1/internal/helpdesk/webhook",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "v1",
+            "internal",
+            "helpdesk",
+            "webhook"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('webhook ack 200', function(){ pm.response.to.have.status(200); });"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    },
+    {
+      "name": "List Escalations (paginated)",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{auth_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/v1/internal/escalations?limit=20&offset=0",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "v1",
+            "internal",
+            "escalations"
+          ],
+          "query": [
+            {
+              "key": "limit",
+              "value": "20"
+            },
+            {
+              "key": "offset",
+              "value": "0"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('list 200', function(){ pm.response.to.have.status(200); });",
+              "let b = pm.response.json();",
+              "pm.test('is array', function(){ pm.expect(Array.isArray(b)).to.be.true; });"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:3000"
+    },
+    {
+      "key": "auth_token",
+      "value": ""
+    },
+    {
+      "key": "tenant_id",
+      "value": "t_local"
+    },
+    {
+      "key": "escalation_id",
+      "value": ""
+    },
+    {
+      "key": "external_ticket_id",
+      "value": ""
+    },
+    {
+      "key": "helpdesk_webhook_sig",
+      "value": ""
+    },
+    {
+      "key": "test_customer_email",
+      "value": "customer@example.com"
+    },
+    {
+      "key": "agent_id",
+      "value": "agent_1"
+    }
+  ]
+}

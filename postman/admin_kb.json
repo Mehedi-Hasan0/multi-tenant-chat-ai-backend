@@ -1,0 +1,225 @@
+{
+  "info": {
+    "_postman_id": "ecom-admin-kb-full",
+    "name": "Ecom AI Agent - Admin Dashboard & KB Management (Full)",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Comprehensive Postman collection for Admin Dashboard and KB Management: tenant admin, KB upload/reindex, prompt templates, metrics, integrations test, data export, RBAC and webhooks."
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:3000" },
+    { "key": "admin_token", "value": "" },
+    { "key": "tenant_id", "value": "t_local" },
+    { "key": "upload_id", "value": "" },
+    { "key": "kb_id", "value": "" },
+    { "key": "prompt_id", "value": "" },
+    { "key": "reindex_job_id", "value": "" },
+    { "key": "export_job_id", "value": "" },
+    { "key": "metrics_from", "value": "2025-01-01" },
+    { "key": "metrics_to", "value": "2025-12-31" }
+  ],
+  "item": [
+    {
+      "name": "00 - Health & Auth",
+      "item": [
+        {
+          "name": "GET /health",
+          "request": { "method": "GET", "url": "{{base_url}}/health" },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('health OK', function(){ pm.response.to.have.status(200); });"], "type": "text/javascript" } }]
+        },
+        {
+          "name": "POST /v1/admin/auth/login (admin)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\"username\":\"admin@example.com\",\"password\":\"password\"}" },
+            "url": "{{base_url}}/v1/admin/auth/login"
+          },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('login 200', function(){ pm.response.to.have.status(200); });",
+            "var b = pm.response.json();",
+            "if(b && b.token) pm.environment.set('admin_token', b.token);"
+          ], "type": "text/javascript" } }]
+        }
+      ]
+    },
+    {
+      "name": "01 - Tenants",
+      "item": [
+        {
+          "name": "GET /v1/admin/tenants",
+          "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }], "url": "{{base_url}}/v1/admin/tenants?limit=50&offset=0" },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('tenants 200', function(){ pm.response.to.have.status(200); });",
+            "var b = pm.response.json(); pm.test('array', function(){ pm.expect(Array.isArray(b)).to.be.true; });"
+          ], "type": "text/javascript" } }]
+        },
+        {
+          "name": "POST /v1/admin/tenants - create tenant",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }, { "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\"name\":\"Test Merchant\",\"plan\":\"pilot\"}" },
+            "url": "{{base_url}}/v1/admin/tenants"
+          },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('create tenant 201', function(){ pm.expect([200,201]).to.include(pm.response.code); });",
+            "var b = pm.response.json(); if(b && b.id) pm.environment.set('tenant_id', b.id);"
+          ], "type": "text/javascript" } }]
+        },
+        {
+          "name": "GET /v1/admin/tenants/{{tenant_id}}",
+          "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }], "url": "{{base_url}}/v1/admin/tenants/{{tenant_id}}" },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('tenant get 200/404', function(){ pm.expect([200,404]).to.include(pm.response.code); });"], "type": "text/javascript" } }]
+        },
+        {
+          "name": "PUT /v1/admin/tenants/{{tenant_id}} - update tenant",
+          "request": { "method": "PUT", "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }, { "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\"plan\":\"production\"}" }, "url": "{{base_url}}/v1/admin/tenants/{{tenant_id}}" },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('tenant update 200', function(){ pm.response.to.have.status(200); });"], "type": "text/javascript" } }]
+        }
+      ]
+    },
+    {
+      "name": "02 - KB Upload & Management",
+      "item": [
+        {
+          "name": "POST /v1/admin/tenants/{{tenant_id}}/kb/upload - upload file or url",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }],
+            "body": { "mode": "formdata", "formdata": [ { "key": "file", "type": "file", "src": [] }, { "key": "url", "type": "text", "value": "" }, { "key": "source", "type": "text", "value": "merchant" } ] },
+            "url": "{{base_url}}/v1/admin/tenants/{{tenant_id}}/kb/upload"
+          },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('upload accepted 202', function(){ pm.expect([200,202]).to.include(pm.response.code); });",
+            "var b=pm.response.json(); if(b && b.upload_id) pm.environment.set('upload_id', b.upload_id);"
+          ], "type": "text/javascript" } }]
+        },
+        {
+          "name": "GET /v1/admin/tenants/{{tenant_id}}/kb/uploads/{{upload_id}}/status",
+          "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }], "url": "{{base_url}}/v1/admin/tenants/{{tenant_id}}/kb/uploads/{{upload_id}}/status" },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('status 200/404', function(){ pm.expect([200,404]).to.include(pm.response.code); });"], "type": "text/javascript" } }]
+        },
+        {
+          "name": "GET /v1/admin/tenants/{{tenant_id}}/kb - list KB entries (paginated)",
+          "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }], "url": "{{base_url}}/v1/admin/tenants/{{tenant_id}}/kb?limit=50&offset=0" },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('list kb 200', function(){ pm.response.to.have.status(200); }); var b=pm.response.json(); pm.test('is array', function(){ pm.expect(Array.isArray(b)).to.be.true; });"], "type": "text/javascript" } }]
+        },
+        {
+          "name": "GET /v1/admin/tenants/{{tenant_id}}/kb/{{kb_id}} - get KB entry",
+          "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }], "url": "{{base_url}}/v1/admin/tenants/{{tenant_id}}/kb/{{kb_id}}" },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('kb get 200/404', function(){ pm.expect([200,404]).to.include(pm.response.code); });"], "type": "text/javascript" } }]
+        },
+        {
+          "name": "PUT /v1/admin/tenants/{{tenant_id}}/kb/{{kb_id}} - update KB entry",
+          "request": { "method": "PUT", "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }, { "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\"title\":\"Updated title\",\"content\":\"Updated content\"}" }, "url": "{{base_url}}/v1/admin/tenants/{{tenant_id}}/kb/{{kb_id}}" },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('kb update 200', function(){ pm.response.to.have.status(200); });"], "type": "text/javascript" } }]
+        },
+        {
+          "name": "DELETE /v1/admin/tenants/{{tenant_id}}/kb/{{kb_id}} - delete KB entry",
+          "request": { "method": "DELETE", "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }], "url": "{{base_url}}/v1/admin/tenants/{{tenant_id}}/kb/{{kb_id}}" },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('kb delete 200', function(){ pm.response.to.have.status(200); });"], "type": "text/javascript" } }]
+        }
+      ]
+    },
+    {
+      "name": "03 - KB Search (retrieve)",
+      "item": [
+        {
+          "name": "POST /v1/retrieve - semantic retrieval",
+          "request": { "method": "POST", "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }, { "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{ \"tenant_id\": \"{{tenant_id}}\", \"query\": \"how to return an item\", \"top_k\": 5 }" }, "url": "{{base_url}}/v1/retrieve" },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('retrieve 200', function(){ pm.response.to.have.status(200); }); var b=pm.response.json(); pm.test('array', function(){ pm.expect(Array.isArray(b.results || b)).to.be.true; });"], "type": "text/javascript" } }]
+        },
+        {
+          "name": "POST /v1/admin/tenants/{{tenant_id}}/kb/search - admin-scoped search",
+          "request": { "method": "POST", "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }, { "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{ \"query\": \"tracking order\", \"top_k\": 10 }" }, "url": "{{base_url}}/v1/admin/tenants/{{tenant_id}}/kb/search" },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('admin search 200', function(){ pm.response.to.have.status(200); });"], "type": "text/javascript" } }]
+        }
+      ]
+    },
+    {
+      "name": "04 - Prompts & Golden Runs",
+      "item": [
+        {
+          "name": "POST /v1/admin/tenants/{{tenant_id}}/prompts - create prompt",
+          "request": { "method": "POST", "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }, { "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\"name\":\"support_v1\",\"content\":\"System prompt content\",\"version\":\"v1\"}" }, "url": "{{base_url}}/v1/admin/tenants/{{tenant_id}}/prompts" },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('create prompt 201', function(){ pm.expect([200,201]).to.include(pm.response.code); }); var b=pm.response.json(); if(b.prompt_id) pm.environment.set('prompt_id', b.prompt_id);"], "type": "text/javascript" } }]
+        },
+        {
+          "name": "PUT /v1/admin/tenants/{{tenant_id}}/prompts/{{prompt_id}} - update prompt",
+          "request": { "method": "PUT", "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }, { "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\"content\":\"Updated prompt\",\"version\":\"v1.1\"}" }, "url": "{{base_url}}/v1/admin/tenants/{{tenant_id}}/prompts/{{prompt_id}}" },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('update prompt 200', function(){ pm.response.to.have.status(200); });"], "type": "text/javascript" } }]
+        },
+        {
+          "name": "POST /v1/admin/tenants/{{tenant_id}}/prompts/{{prompt_id}}/run-golden - run golden tasks",
+          "request": { "method": "POST", "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }, { "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\"run_name\":\"smoke_{{unique}}\" }" }, "url": "{{base_url}}/v1/admin/tenants/{{tenant_id}}/prompts/{{prompt_id}}/run-golden" },
+          "event": [{ "listen": "prerequest", "script": { "exec": ["if(!pm.environment.get('unique')) pm.environment.set('unique', Math.floor(Math.random()*1000000));"], "type": "text/javascript" } }, { "listen": "test", "script": { "exec": ["pm.test('run golden accepted', function(){ pm.expect([200,202]).to.include(pm.response.code); }); var b=pm.response.json(); if(b.run_id) pm.environment.set('golden_run_id', b.run_id);"], "type": "text/javascript" } }]
+        }
+      ]
+    },
+    {
+      "name": "05 - Integrations & Connectors",
+      "item": [
+        {
+          "name": "POST /v1/admin/tenants/{{tenant_id}}/integrations/shopify/oauth - oauth callback",
+          "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }, { "key": "Authorization", "value": "Bearer {{admin_token}}" }], "body": { "mode": "raw", "raw": "{\"code\":\"sample_code\",\"state\":\"state123\"}" }, "url": "{{base_url}}/v1/admin/tenants/{{tenant_id}}/integrations/shopify/oauth" },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('oauth callback 200', function(){ pm.response.to.have.status(200); });"], "type": "text/javascript" } }]
+        },
+        {
+          "name": "POST /v1/admin/tenants/{{tenant_id}}/integrations/shopify/test - test connector",
+          "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }, { "key": "Authorization", "value": "Bearer {{admin_token}}" }], "body": { "mode": "raw", "raw": "{\"shop\":\"dev-shop.myshopify.com\"}" }, "url": "{{base_url}}/v1/admin/tenants/{{tenant_id}}/integrations/shopify/test" },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('connector test 200', function(){ pm.response.to.have.status(200); });"], "type": "text/javascript" } }]
+        }
+      ]
+    },
+    {
+      "name": "06 - Reindex & Export Jobs",
+      "item": [
+        {
+          "name": "POST /v1/admin/tenants/{{tenant_id}}/kb/reindex - trigger reindex",
+          "request": { "method": "POST", "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }, { "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\"force\":true}" }, "url": "{{base_url}}/v1/admin/tenants/{{tenant_id}}/kb/reindex" },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('reindex accepted', function(){ pm.expect([200,202]).to.include(pm.response.code); }); var b=pm.response.json(); if(b.job_id) pm.environment.set('reindex_job_id', b.job_id);"], "type": "text/javascript" } }]
+        },
+        {
+          "name": "GET /v1/admin/tenants/{{tenant_id}}/kb/reindex/{{reindex_job_id}} - reindex status",
+          "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }], "url": "{{base_url}}/v1/admin/tenants/{{tenant_id}}/kb/reindex/{{reindex_job_id}}" },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('reindex status check', function(){ pm.expect([200,404]).to.include(pm.response.code); });"], "type": "text/javascript" } }]
+        },
+        {
+          "name": "POST /v1/admin/tenants/{{tenant_id}}/export - start export",
+          "request": { "method": "POST", "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }, { "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\"range_days\":30}" }, "url": "{{base_url}}/v1/admin/tenants/{{tenant_id}}/export" },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('export accepted', function(){ pm.expect([200,202]).to.include(pm.response.code); }); var b=pm.response.json(); if(b.export_job_id) pm.environment.set('export_job_id', b.export_job_id);"], "type": "text/javascript" } }]
+        },
+        {
+          "name": "GET /v1/admin/tenants/{{tenant_id}}/export/{{export_job_id}} - export status",
+          "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }], "url": "{{base_url}}/v1/admin/tenants/{{tenant_id}}/export/{{export_job_id}}" },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('export status', function(){ pm.expect([200,404]).to.include(pm.response.code); });"], "type": "text/javascript" } }]
+        }
+      ]
+    },
+    {
+      "name": "07 - Metrics & Monitoring",
+      "item": [
+        {
+          "name": "GET /v1/admin/tenants/{{tenant_id}}/metrics - tenant metrics",
+          "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }], "url": "{{base_url}}/v1/admin/tenants/{{tenant_id}}/metrics?from={{metrics_from}}&to={{metrics_to}}" },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('metrics 200', function(){ pm.response.to.have.status(200); });"], "type": "text/javascript" } }]
+        }
+      ]
+    },
+    {
+      "name": "08 - Admin Data Governance",
+      "item": [
+        {
+          "name": "POST /v1/admin/tenants/{{tenant_id}}/data/export - export data (sync)",
+          "request": { "method": "POST", "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }, { "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\"types\":[\"kb\",\"conversations\"]}" }, "url": "{{base_url}}/v1/admin/tenants/{{tenant_id}}/data/export" },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('data export 200/202', function(){ pm.expect([200,202]).to.include(pm.response.code); });"], "type": "text/javascript" } }]
+        },
+        {
+          "name": "DELETE /v1/admin/tenants/{{tenant_id}}/data - delete tenant data (GDPR)",
+          "request": { "method": "DELETE", "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }], "url": "{{base_url}}/v1/admin/tenants/{{tenant_id}}/data?confirm=true" },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('delete request accepted', function(){ pm.expect([200,202]).to.include(pm.response.code); });"], "type": "text/javascript" } }]
+        }
+      ]
+    }
+  ]
+}

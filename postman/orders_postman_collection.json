@@ -1,0 +1,333 @@
+{
+  "info": {
+    "name": "Ecom AI Agent - Order Lookup & Read-only Actions",
+    "_postman_id": "orders-feature-001",
+    "description": "Postman collection for Order Lookup and read-only order actions (connectors, lookup, search, webhooks).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Health Check",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/health",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "health"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('health 200', function(){ pm.response.to.have.status(200); });"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Order Lookup - by order_id",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{auth_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"order_id\": \"{{shopify_test_order_id}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/v1/internal/order/lookup",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "v1",
+            "internal",
+            "order",
+            "lookup"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('status 200', function(){ pm.response.to.have.status(200); });",
+              "let b = pm.response.json();",
+              "pm.test('has order_id', function(){ pm.expect(b).to.have.property('order_id'); });",
+              "pm.test('has status', function(){ pm.expect(b).to.have.property('status'); });"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Order Lookup - by email",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{auth_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{test_customer_email}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/v1/internal/order/lookup",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "v1",
+            "internal",
+            "order",
+            "lookup"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('status 200 or 404', function(){ pm.expect([200,404]).to.include(pm.response.code); });"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Search Orders (query by email)",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{auth_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/v1/internal/orders?email={{test_customer_email}}&limit=10",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "v1",
+            "internal",
+            "orders"
+          ],
+          "query": [
+            {
+              "key": "email",
+              "value": "{{test_customer_email}}"
+            },
+            {
+              "key": "limit",
+              "value": "10"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('status 200', function(){ pm.response.to.have.status(200); });",
+              "let b = pm.response.json();",
+              "pm.test('array response', function(){ pm.expect(Array.isArray(b)).to.be.true; });"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Connector Test - Shopify OAuth (simulate)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{auth_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"shop\": \"test-shop.myshopify.com\",\n  \"code\": \"sample_code\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/v1/admin/tenants/{{tenant_id}}/connectors/shopify/test",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "v1",
+            "admin",
+            "tenants",
+            "{{tenant_id}}",
+            "connectors",
+            "shopify",
+            "test"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('status 200 or 201', function(){ pm.expect([200,201]).to.include(pm.response.code); });",
+              "let b = pm.response.json();",
+              "pm.test('has message', function(){ pm.expect(b).to.have.property('message'); });"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Order Webhook Receiver (simulate platform webhook)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Shopify-Hmac-Sha256",
+            "value": "{{shopify_webhook_hmac}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"id\": \"{{shopify_test_order_id}}\",\n  \"email\": \"{{test_customer_email}}\",\n  \"financial_status\": \"paid\",\n  \"fulfillment_status\": \"shipped\",\n  \"line_items\": [\n    {\n      \"sku\": \"SKU-1\",\n      \"quantity\": 1,\n      \"title\": \"Test Product\"\n    }\n  ]\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/v1/internal/orders/webhook",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "v1",
+            "internal",
+            "orders",
+            "webhook"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('webhook accepted', function(){ pm.response.to.have.status(200); });"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Invalidate Order Cache",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{auth_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"order_id\": \"{{shopify_test_order_id}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/v1/internal/order/cache/invalidate",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "v1",
+            "internal",
+            "order",
+            "cache",
+            "invalidate"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('cache invalidated 200', function(){ pm.response.to.have.status(200); });"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:3000"
+    },
+    {
+      "key": "auth_token",
+      "value": ""
+    },
+    {
+      "key": "tenant_id",
+      "value": "t_local"
+    },
+    {
+      "key": "shopify_test_order_id",
+      "value": "1001"
+    },
+    {
+      "key": "test_customer_email",
+      "value": "customer@example.com"
+    },
+    {
+      "key": "shopify_webhook_hmac",
+      "value": ""
+    }
+  ]
+}

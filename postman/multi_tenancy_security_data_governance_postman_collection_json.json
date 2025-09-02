@@ -1,0 +1,128 @@
+{
+  "info": {
+    "_postman_id": "ecom-multitenancy-001",
+    "name": "Ecom AI Agent - Multi-tenancy, Security & Data Governance",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Postman collection for multi-tenancy, security and data governance APIs: RLS checks, secrets management, PII redaction, audit logs, data export & deletion, compliance toggles."
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:3000" },
+    { "key": "admin_token", "value": "" },
+    { "key": "tenant_id", "value": "t_local" },
+    { "key": "audit_id", "value": "" },
+    { "key": "secret_id", "value": "" },
+    { "key": "export_job_id", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "00 - Health",
+      "item": [
+        {
+          "name": "GET /health",
+          "request": { "method": "GET", "url": "{{base_url}}/health" },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('health OK', function(){ pm.response.to.have.status(200); });"], "type": "text/javascript" } }]
+        }
+      ]
+    },
+    {
+      "name": "01 - Tenant Security Settings",
+      "item": [
+        {
+          "name": "GET /v1/admin/tenants/{{tenant_id}}/security - get security settings",
+          "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }], "url": "{{base_url}}/v1/admin/tenants/{{tenant_id}}/security" },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('security get 200/404', function(){ pm.expect([200,404]).to.include(pm.response.code); });"], "type": "text/javascript" } }]
+        },
+        {
+          "name": "PUT /v1/admin/tenants/{{tenant_id}}/security - update security settings",
+          "request": { "method": "PUT", "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }, { "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{ \"pii_redaction_enabled\": true, \"auto_escalation_threshold\": 0.6 }" }, "url": "{{base_url}}/v1/admin/tenants/{{tenant_id}}/security" },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('security update 200', function(){ pm.response.to.have.status(200); });"], "type": "text/javascript" } }]
+        }
+      ]
+    },
+    {
+      "name": "02 - Secrets Management (vault references)",
+      "item": [
+        {
+          "name": "POST /v1/admin/tenants/{{tenant_id}}/secrets - store secret reference",
+          "request": { "method": "POST", "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }, { "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{ \"name\": \"shopify_api_key\", \"vault_ref\": \"vault://secrets/shopify/t_local\" }" }, "url": "{{base_url}}/v1/admin/tenants/{{tenant_id}}/secrets" },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('secret saved 201', function(){ pm.expect([200,201]).to.include(pm.response.code); }); var b=pm.response.json(); if(b.id) pm.environment.set('secret_id', b.id);"], "type": "text/javascript" } }]
+        },
+        {
+          "name": "GET /v1/admin/tenants/{{tenant_id}}/secrets/{{secret_id}} - get secret metadata",
+          "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }], "url": "{{base_url}}/v1/admin/tenants/{{tenant_id}}/secrets/{{secret_id}}" },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('secret get 200/404', function(){ pm.expect([200,404]).to.include(pm.response.code); });"], "type": "text/javascript" } }]
+        },
+        {
+          "name": "POST /v1/admin/tenants/{{tenant_id}}/secrets/{{secret_id}}/test - test connector using secret",
+          "request": { "method": "POST", "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }, { "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{ \"test\": true }" }, "url": "{{base_url}}/v1/admin/tenants/{{tenant_id}}/secrets/{{secret_id}}/test" },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('secret test 200/400', function(){ pm.expect([200,400]).to.include(pm.response.code); });"], "type": "text/javascript" } }]
+        }
+      ]
+    },
+    {
+      "name": "03 - PII Redaction & Tokenization",
+      "item": [
+        {
+          "name": "POST /v1/admin/tenants/{{tenant_id}}/pii/redact - redact sample text",
+          "request": { "method": "POST", "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }, { "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{ \"text\": \"Customer email is jane.doe@example.com and phone +15551234567\" }" }, "url": "{{base_url}}/v1/admin/tenants/{{tenant_id}}/pii/redact" },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('redact 200', function(){ pm.response.to.have.status(200); }); var b=pm.response.json(); pm.test('redacted fields removed', function(){ pm.expect(b.text).to.not.contain('jane.doe@example.com'); pm.expect(b.text).to.not.contain('+15551234567'); });"], "type": "text/javascript" } }]
+        },
+        {
+          "name": "POST /v1/admin/tenants/{{tenant_id}}/pii/tokenize - deterministic tokenization",
+          "request": { "method": "POST", "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }, { "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{ \"text\": \"Customer email is jane.doe@example.com\" }" }, "url": "{{base_url}}/v1/admin/tenants/{{tenant_id}}/pii/tokenize" },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('tokenize 200', function(){ pm.response.to.have.status(200); }); var b=pm.response.json(); pm.test('token present', function(){ pm.expect(b.tokens).to.be.an('array'); });"], "type": "text/javascript" } }]
+        }
+      ]
+    },
+    {
+      "name": "04 - Audit Logs & Access",
+      "item": [
+        {
+          "name": "GET /v1/admin/tenants/{{tenant_id}}/audit-logs - list audit logs",
+          "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }], "url": "{{base_url}}/v1/admin/tenants/{{tenant_id}}/audit-logs?limit=100&offset=0" },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('audit logs 200', function(){ pm.response.to.have.status(200); }); var b=pm.response.json(); pm.test('array', function(){ pm.expect(Array.isArray(b)).to.be.true; }); if(b.length>0) pm.environment.set('audit_id', b[0].id);"], "type": "text/javascript" } }]
+        },
+        {
+          "name": "GET /v1/admin/tenants/{{tenant_id}}/audit-logs/{{audit_id}} - get audit entry",
+          "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }], "url": "{{base_url}}/v1/admin/tenants/{{tenant_id}}/audit-logs/{{audit_id}}" },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('audit get 200/404', function(){ pm.expect([200,404]).to.include(pm.response.code); });"], "type": "text/javascript" } }]
+        }
+      ]
+    },
+    {
+      "name": "05 - Data Export & Delete (GDPR)",
+      "item": [
+        {
+          "name": "POST /v1/admin/tenants/{{tenant_id}}/data/export - request export",
+          "request": { "method": "POST", "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }, { "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{ \"types\": [ \"kb\", \"conversations\" ], \"range_days\": 365 }" }, "url": "{{base_url}}/v1/admin/tenants/{{tenant_id}}/data/export" },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('export accepted', function(){ pm.expect([200,202]).to.include(pm.response.code); }); var b=pm.response.json(); if(b.export_job_id) pm.environment.set('export_job_id', b.export_job_id);"], "type": "text/javascript" } }]
+        },
+        {
+          "name": "GET /v1/admin/tenants/{{tenant_id}}/data/export/{{export_job_id}} - export status",
+          "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }], "url": "{{base_url}}/v1/admin/tenants/{{tenant_id}}/data/export/{{export_job_id}}" },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('export status 200/404', function(){ pm.expect([200,404]).to.include(pm.response.code); });"], "type": "text/javascript" } }]
+        },
+        {
+          "name": "DELETE /v1/admin/tenants/{{tenant_id}}/data - delete tenant data",
+          "request": { "method": "DELETE", "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }], "url": "{{base_url}}/v1/admin/tenants/{{tenant_id}}/data?confirm=true" },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('delete accepted 200/202', function(){ pm.expect([200,202]).to.include(pm.response.code); });"], "type": "text/javascript" } }]
+        }
+      ]
+    },
+    {
+      "name": "06 - Compliance & Training Opt-out",
+      "item": [
+        {
+          "name": "POST /v1/admin/tenants/{{tenant_id}}/policy/training_optout - opt-out of model training",
+          "request": { "method": "POST", "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }, { "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{ \"opt_out\": true }" }, "url": "{{base_url}}/v1/admin/tenants/{{tenant_id}}/policy/training_optout" },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('optout 200', function(){ pm.response.to.have.status(200); });"], "type": "text/javascript" } }]
+        },
+        {
+          "name": "GET /v1/admin/tenants/{{tenant_id}}/policy - get policy settings",
+          "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }], "url": "{{base_url}}/v1/admin/tenants/{{tenant_id}}/policy" },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('policy 200/404', function(){ pm.expect([200,404]).to.include(pm.response.code); });"], "type": "text/javascript" } }]
+        }
+      ]
+    }
+  ]
+}

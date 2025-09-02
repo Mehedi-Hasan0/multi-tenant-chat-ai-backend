@@ -1,0 +1,148 @@
+{
+  "info": {
+    "name": "E-commerce AI Support Agent \u2014 Knowledge Base API",
+    "_postman_id": "kb-collection-001",
+    "description": "Postman collection for Knowledge Base feature (CRUD APIs for FAQs, policies, documents, and embeddings).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Knowledge Base",
+      "item": [
+        {
+          "name": "Get All Articles",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/kb",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "kb"
+              ]
+            },
+            "description": "Retrieve a list of all knowledge base articles (FAQs, policies, etc.)."
+          }
+        },
+        {
+          "name": "Get Article by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/kb/:id",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "kb",
+                ":id"
+              ]
+            },
+            "description": "Retrieve details of a single knowledge base article by ID."
+          }
+        },
+        {
+          "name": "Create Article",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"How to track my order?\",\n  \"content\": \"You can track your order by visiting the order status page.\",\n  \"tags\": [\n    \"order\",\n    \"tracking\"\n  ],\n  \"type\": \"faq\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/kb",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "kb"
+              ]
+            },
+            "description": "Create a new knowledge base article."
+          }
+        },
+        {
+          "name": "Update Article",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Updated FAQ Title\",\n  \"content\": \"Updated article content goes here.\",\n  \"tags\": [\n    \"returns\",\n    \"refunds\"\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/kb/:id",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "kb",
+                ":id"
+              ]
+            },
+            "description": "Update an existing knowledge base article by ID."
+          }
+        },
+        {
+          "name": "Delete Article",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/kb/:id",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "kb",
+                ":id"
+              ]
+            },
+            "description": "Delete a knowledge base article by ID."
+          }
+        },
+        {
+          "name": "Search Knowledge Base",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"query\": \"return policy\",\n  \"top_k\": 5\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/kb/search",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "kb",
+                "search"
+              ]
+            },
+            "description": "Perform a semantic search on the knowledge base using vector embeddings."
+          }
+        }
+      ]
+    }
+  ]
+}

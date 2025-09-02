@@ -1,0 +1,123 @@
+{
+  "info": {
+    "_postman_id": "ecom-observability-001",
+    "name": "Ecom AI Agent - Observability, Eval & Analytics",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Postman collection for Observability, Evaluation (golden tasks), metrics, cost accounting, and alerts."
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:3000" },
+    { "key": "admin_token", "value": "" },
+    { "key": "tenant_id", "value": "t_local" },
+    { "key": "metrics_from", "value": "2025-01-01" },
+    { "key": "metrics_to", "value": "2025-12-31" },
+    { "key": "golden_run_id", "value": "" },
+    { "key": "eval_task_id", "value": "" },
+    { "key": "alert_id", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "00 - Health",
+      "item": [
+        {
+          "name": "GET /health",
+          "request": { "method": "GET", "url": "{{base_url}}/health" },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('health OK', function(){ pm.response.to.have.status(200); });"], "type": "text/javascript" } }]
+        }
+      ]
+    },
+    {
+      "name": "01 - Metrics",
+      "item": [
+        {
+          "name": "GET /v1/admin/tenants/{{tenant_id}}/metrics - tenant metrics",
+          "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }], "url": "{{base_url}}/v1/admin/tenants/{{tenant_id}}/metrics?from={{metrics_from}}&to={{metrics_to}}" },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('metrics 200', function(){ pm.response.to.have.status(200); });",
+            "var b = pm.response.json(); pm.test('has keys', function(){ pm.expect(b).to.have.property('messages_total'); pm.expect(b).to.have.property('auto_resolve_rate'); });"
+          ], "type": "text/javascript" } }]
+        },
+        {
+          "name": "GET /v1/metrics/system - system-wide metrics",
+          "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }], "url": "{{base_url}}/v1/metrics/system?from={{metrics_from}}&to={{metrics_to}}" },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('system metrics 200', function(){ pm.response.to.have.status(200); });"], "type": "text/javascript" } }]
+        },
+        {
+          "name": "GET /v1/usage/tokens - token usage (tenant)",
+          "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }], "url": "{{base_url}}/v1/usage/tokens?tenant_id={{tenant_id}}&from={{metrics_from}}&to={{metrics_to}}" },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('tokens usage 200', function(){ pm.response.to.have.status(200); });"], "type": "text/javascript" } }]
+        }
+      ]
+    },
+    {
+      "name": "02 - Golden Tasks & Eval",
+      "item": [
+        {
+          "name": "POST /v1/admin/tenants/{{tenant_id}}/prompts/{{prompt_id}}/run-golden - start golden run",
+          "request": { "method": "POST", "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }, { "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{ \"run_name\": \"smoke_{{unique}}\" }" }, "url": "{{base_url}}/v1/admin/tenants/{{tenant_id}}/prompts/{{prompt_id}}/run-golden" },
+          "event": [{ "listen": "prerequest", "script": { "exec": ["if(!pm.environment.get('unique')) pm.environment.set('unique', Math.floor(Math.random()*1000000));"], "type": "text/javascript" } }, { "listen": "test", "script": { "exec": ["pm.test('run created', function(){ pm.expect([200,202]).to.include(pm.response.code); }); var b=pm.response.json(); if(b.run_id) pm.environment.set('golden_run_id', b.run_id);"], "type": "text/javascript" } }]
+        },
+        {
+          "name": "GET /v1/admin/golden_runs/{{golden_run_id}} - get golden run status",
+          "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }], "url": "{{base_url}}/v1/admin/golden_runs/{{golden_run_id}}" },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('golden run 200/404', function(){ pm.expect([200,404]).to.include(pm.response.code); });"], "type": "text/javascript" } }]
+        },
+        {
+          "name": "GET /v1/admin/evals/{{eval_task_id}} - get specific eval result",
+          "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }], "url": "{{base_url}}/v1/admin/evals/{{eval_task_id}}" },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('eval get 200/404', function(){ pm.expect([200,404]).to.include(pm.response.code); });"], "type": "text/javascript" } }]
+        }
+      ]
+    },
+    {
+      "name": "03 - Hallucination & Schema Monitoring",
+      "item": [
+        {
+          "name": "POST /v1/admin/hallucinations/report - submit hallucination report",
+          "request": { "method": "POST", "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }, { "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{ \"session_id\": \"s_123\", \"message_id\": \"m_456\", \"details\": \"Agent provided incorrect tracking url\" }" }, "url": "{{base_url}}/v1/admin/hallucinations/report" },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('report accepted', function(){ pm.expect([200,201]).to.include(pm.response.code); });"], "type": "text/javascript" } }]
+        },
+        {
+          "name": "GET /v1/admin/schema/errors - schema validation errors",
+          "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }], "url": "{{base_url}}/v1/admin/schema/errors?from={{metrics_from}}&to={{metrics_to}}" },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('schema errors 200', function(){ pm.response.to.have.status(200); });"], "type": "text/javascript" } }]
+        }
+      ]
+    },
+    {
+      "name": "04 - Logs & Traces",
+      "item": [
+        {
+          "name": "POST /v1/admin/logs/search - search logs",
+          "request": { "method": "POST", "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }, { "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{ \"query\": \"order lookup failed\", \"from\": \"{{metrics_from}}\", \"to\": \"{{metrics_to}}\" }" }, "url": "{{base_url}}/v1/admin/logs/search" },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('logs search 200', function(){ pm.response.to.have.status(200); });"], "type": "text/javascript" } }]
+        },
+        {
+          "name": "GET /v1/admin/traces/{{trace_id}} - get trace",
+          "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }], "url": "{{base_url}}/v1/admin/traces/{{trace_id}}" },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('trace 200/404', function(){ pm.expect([200,404]).to.include(pm.response.code); });"], "type": "text/javascript" } }]
+        }
+      ]
+    },
+    {
+      "name": "05 - Alerts & Notifications",
+      "item": [
+        {
+          "name": "POST /v1/admin/alerts - create alert",
+          "request": { "method": "POST", "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }, { "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{ \"name\": \"High hallucination rate\", \"query\": \"hallucination_rate > 0.05\", \"severity\": \"critical\" }" }, "url": "{{base_url}}/v1/admin/alerts" },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('alert created', function(){ pm.expect([200,201]).to.include(pm.response.code); }); var b=pm.response.json(); if(b.id) pm.environment.set('alert_id', b.id);"], "type": "text/javascript" } }]
+        },
+        {
+          "name": "GET /v1/admin/alerts/{{alert_id}} - get alert",
+          "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }], "url": "{{base_url}}/v1/admin/alerts/{{alert_id}}" },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('alert 200/404', function(){ pm.expect([200,404]).to.include(pm.response.code); });"], "type": "text/javascript" } }]
+        },
+        {
+          "name": "POST /v1/admin/alerts/{{alert_id}}/ack - acknowledge alert",
+          "request": { "method": "POST", "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }, { "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{ \"ack_by\": \"oncall@example.com\" }" }, "url": "{{base_url}}/v1/admin/alerts/{{alert_id}}/ack" },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('ack 200', function(){ pm.response.to.have.status(200); });"], "type": "text/javascript" } }]
+        }
+      ]
+    }
+  ]
+}

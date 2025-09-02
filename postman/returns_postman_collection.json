@@ -1,0 +1,350 @@
+{
+  "info": {
+    "name": "Ecom AI Agent - Returns / Create Ticket",
+    "_postman_id": "returns-feature-001",
+    "description": "Postman collection for Returns flow and create_return action (suggest-only / auto-create toggle, idempotency).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Health Check",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/health",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "health"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('health 200', function(){ pm.response.to.have.status(200); });"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Create Return (suggest-only)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{auth_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"mode\": \"suggest\",\n  \"order_id\": \"{{shopify_test_order_id}}\",\n  \"items\": [\n    {\n      \"sku\": \"SKU-1\",\n      \"qty\": 1\n    }\n  ],\n  \"reason\": \"damaged item\",\n  \"idempotency_key\": \"{{idempotency_key}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/v1/internal/actions/create_return",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "v1",
+            "internal",
+            "actions",
+            "create_return"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "exec": [
+              "// ensure idempotency_key exists",
+              "if(!pm.environment.get('idempotency_key')) {",
+              "  pm.environment.set('idempotency_key', 'idemp-' + Math.floor(Math.random()*1000000000));",
+              "}"
+            ],
+            "type": "text/javascript"
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('status 200 or 202', function(){ pm.expect([200,202]).to.include(pm.response.code); });",
+              "let b = pm.response.json();",
+              "pm.test('contains mode or suggestion', function(){ pm.expect(b).to.have.property('mode'); });"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Create Return (auto-create)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{auth_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"mode\": \"auto\",\n  \"order_id\": \"{{shopify_test_order_id}}\",\n  \"items\": [\n    {\n      \"sku\": \"SKU-1\",\n      \"qty\": 1\n    }\n  ],\n  \"reason\": \"damaged item\",\n  \"idempotency_key\": \"{{idempotency_key_auto}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/v1/internal/actions/create_return",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "v1",
+            "internal",
+            "actions",
+            "create_return"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "exec": [
+              "if(!pm.environment.get('idempotency_key_auto')) {",
+              "  pm.environment.set('idempotency_key_auto', 'idemp-auto-' + Math.floor(Math.random()*1000000000));",
+              "}"
+            ],
+            "type": "text/javascript"
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('status 200', function(){ pm.response.to.have.status(200); });",
+              "let b = pm.response.json();",
+              "pm.test('has return_id or external_ticket_id', function(){ pm.expect(b).to.satisfy(function(obj){ return obj.hasOwnProperty('return_id') || obj.hasOwnProperty('external_ticket_id'); }); });"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Get Return Status by return_id",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{auth_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/v1/internal/actions/returns/{{return_id}}",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "v1",
+            "internal",
+            "actions",
+            "returns",
+            "{{return_id}}"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('status 200 or 404', function(){ pm.expect([200,404]).to.include(pm.response.code); });"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    },
+    {
+      "name": "List Returns (by tenant)",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{auth_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/v1/internal/actions/returns?limit=20&offset=0",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "v1",
+            "internal",
+            "actions",
+            "returns"
+          ],
+          "query": [
+            {
+              "key": "limit",
+              "value": "20"
+            },
+            {
+              "key": "offset",
+              "value": "0"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('status 200', function(){ pm.response.to.have.status(200); });",
+              "let b = pm.response.json();",
+              "pm.test('array returned', function(){ pm.expect(Array.isArray(b)).to.be.true; });"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Simulate Helpdesk Ticket Update (webhook)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"external_ticket_id\": \"{{external_ticket_id}}\",\n  \"status\": \"resolved\",\n  \"notes\": \"Agent processed return and issued label.\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/v1/internal/actions/returns/webhook",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "v1",
+            "internal",
+            "actions",
+            "returns",
+            "webhook"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('webhook accepted', function(){ pm.response.to.have.status(200); });"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Idempotency test - re-send same idempotency_key",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{auth_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"mode\": \"auto\",\n  \"order_id\": \"{{shopify_test_order_id}}\",\n  \"items\": [\n    {\n      \"sku\": \"SKU-1\",\n      \"qty\": 1\n    }\n  ],\n  \"reason\": \"damaged item\",\n  \"idempotency_key\": \"{{idempotency_key_auto}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/v1/internal/actions/create_return",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "v1",
+            "internal",
+            "actions",
+            "create_return"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('idempotency handled - 200 or 409', function(){ pm.expect([200,409]).to.include(pm.response.code); });"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:3000"
+    },
+    {
+      "key": "auth_token",
+      "value": ""
+    },
+    {
+      "key": "tenant_id",
+      "value": "t_local"
+    },
+    {
+      "key": "shopify_test_order_id",
+      "value": "1001"
+    },
+    {
+      "key": "idempotency_key",
+      "value": ""
+    },
+    {
+      "key": "idempotency_key_auto",
+      "value": ""
+    },
+    {
+      "key": "return_id",
+      "value": ""
+    },
+    {
+      "key": "external_ticket_id",
+      "value": ""
+    }
+  ]
+}

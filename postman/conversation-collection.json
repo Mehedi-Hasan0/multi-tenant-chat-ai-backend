@@ -1,0 +1,195 @@
+{
+  "info": {
+    "_postman_id": "conversation-feature-uuid",
+    "name": "Ecom AI Agent - Conversation Feature",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Conversation / Web Chat Widget APIs (session, stream token, messages, history, widget actions)."
+  },
+  "item": [
+    {
+      "name": "GET /health",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{base_url}}/health"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('health 200', function(){",
+              "  pm.response.to.have.status(200);",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    },
+    {
+      "name": "POST /v1/public/sessions - create session",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"tenant_id\": \"{{tenant_id}}\",\n  \"channel\": \"web\",\n  \"user\": { \"email\": \"user@example.com\" }\n}"
+        },
+        "url": "{{base_url}}/v1/public/sessions"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('201 or 200', function(){",
+              "  pm.expect([200,201]).to.include(pm.response.code);",
+              "});",
+              "const body = pm.response.json();",
+              "pm.test('has session_id and ws_token', function(){",
+              "  pm.expect(body).to.have.property('session_id');",
+              "  pm.expect(body).to.have.property('ws_token');",
+              "});",
+              "// store session_id for subsequent requests",
+              "if (body.session_id) pm.environment.set('session_id', body.session_id);"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    },
+    {
+      "name": "GET /v1/public/sessions/{{session_id}}/stream - negotiate ws token",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{auth_token}}" }
+        ],
+        "url": "{{base_url}}/v1/public/sessions/{{session_id}}/stream"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('200 and ws_url present', function(){",
+              "  pm.response.to.have.status(200);",
+              "  const body = pm.response.json();",
+              "  pm.expect(body).to.have.property('ws_url');",
+              "  pm.expect(body).to.have.property('token');",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    },
+    {
+      "name": "POST /v1/public/sessions/{{session_id}}/messages - send message",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"message_id\": \"m_{{unique_id}}\",\n  \"text\": \"Where is my order #{{shopify_test_order_id}}?\",\n  \"metadata\": { \"order_id\": \"{{shopify_test_order_id}}\", \"user_email\": \"user@example.com\" }\n}"
+        },
+        "url": "{{base_url}}/v1/public/sessions/{{session_id}}/messages"
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "exec": [
+              "// ensure unique id if not set",
+              "if(!pm.environment.get('unique_id')) {",
+              "  pm.environment.set('unique_id', Math.floor(Math.random()*1000000));",
+              "}"
+            ],
+            "type": "text/javascript"
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('accepted 202', function(){",
+              "  pm.response.to.have.status(202);",
+              "});",
+              "const body = pm.response.json();",
+              "pm.test('ack true and message_id present', function(){",
+              "  pm.expect(body).to.have.property('ack');",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    },
+    {
+      "name": "GET /v1/public/sessions/{{session_id}}/messages/history - fetch history",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{auth_token}}" }
+        ],
+        "url": "{{base_url}}/v1/public/sessions/{{session_id}}/messages/history?limit=50"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('200 and array', function(){",
+              "  pm.response.to.have.status(200);",
+              "  const body = pm.response.json();",
+              "  pm.expect(Array.isArray(body)).to.be.true;",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    },
+    {
+      "name": "POST /v1/public/sessions/{{session_id}}/actions - widget action invoke",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{auth_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"action\": \"create_return_click\",\n  \"payload\": { \"order_id\":\"{{shopify_test_order_id}}\" }\n}"
+        },
+        "url": "{{base_url}}/v1/public/sessions/{{session_id}}/actions"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('action accepted 200', function(){",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "const body = pm.response.json();",
+              "pm.test('has action_result', function(){",
+              "  pm.expect(body).to.have.property('result');",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:3000" },
+    { "key": "auth_token", "value": "" },
+    { "key": "tenant_id", "value": "t_test" },
+    { "key": "session_id", "value": "" },
+    { "key": "shopify_test_order_id", "value": "1001" },
+    { "key": "unique_id", "value": "" }
+  ]
+}
