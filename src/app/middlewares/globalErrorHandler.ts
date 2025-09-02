@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import { ErrorRequestHandler } from 'express';
 import { IGenericErrorMessage } from '../../types';
 import handleValidationError from '../../errors/handleValidationError';
